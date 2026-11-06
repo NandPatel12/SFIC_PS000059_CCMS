@@ -1,0 +1,20 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Serve existing files and directories directly
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    # Route all other requests (including /api/*) through index.php
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+# Disable directory listing
+Options -Indexes
+
+# Block direct web access to sensitive environment, sqlite or log files
+<FilesMatch "^\.env|\.sqlite$|\.log$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>

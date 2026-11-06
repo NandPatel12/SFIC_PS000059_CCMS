@@ -204,3 +204,72 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
     FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+
+-- ========================================================
+-- PHASE 4 & PHASE 5 TABLES
+-- ========================================================
+
+-- 13. Lighting Schedules (Astronomical & Time-block Dimming Profiles)
+CREATE TABLE IF NOT EXISTS `lighting_schedules` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `name` VARCHAR(100) NOT NULL,
+    `ward_id` INT DEFAULT NULL,
+    `feeder_id` INT DEFAULT NULL,
+    `is_astronomical` TINYINT(1) NOT NULL DEFAULT 1,
+    `sunset_offset_mins` INT NOT NULL DEFAULT 0,
+    `sunrise_offset_mins` INT NOT NULL DEFAULT 0,
+    `fixed_on_time` TIME DEFAULT NULL,
+    `fixed_off_time` TIME DEFAULT NULL,
+    `dimming_profile_json` JSON DEFAULT NULL,
+    `status` ENUM('active', 'draft', 'archived') NOT NULL DEFAULT 'active',
+    `approved_by` INT DEFAULT NULL,
+    `approved_at` DATETIME DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (`ward_id`) REFERENCES `wards` (`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`feeder_id`) REFERENCES `feeders` (`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`approved_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- 14. Device Commands Queue (Switching, Dimming & Manual Overrides)
+CREATE TABLE IF NOT EXISTS `device_commands` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `command_code` VARCHAR(50) NOT NULL UNIQUE,
+    `target_type` ENUM('feeder', 'luminaire', 'ward') NOT NULL,
+    `target_id` INT NOT NULL,
+    `command_type` ENUM('SWITCH_ON', 'SWITCH_OFF', 'SET_DIMMING', 'MANUAL_OVERRIDE', 'REBOOT') NOT NULL,
+    `parameters_json` JSON DEFAULT NULL,
+    `reason` VARCHAR(255) DEFAULT NULL,
+    `status` ENUM('pending', 'dispatched', 'acknowledged', 'failed', 'expired') NOT NULL DEFAULT 'pending',
+    `issued_by` INT DEFAULT NULL,
+    `expires_at` DATETIME DEFAULT NULL,
+    `acknowledged_at` DATETIME DEFAULT NULL,
+    `response_payload_json` JSON DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_cmd_target` (`target_type`, `target_id`, `status`),
+    INDEX `idx_cmd_status` (`status`),
+    FOREIGN KEY (`issued_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- 15. Work Order Events & Audit Timeline
+CREATE TABLE IF NOT EXISTS `work_order_events` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `work_order_id` INT NOT NULL,
+    `user_id` INT DEFAULT NULL,
+    `from_status` VARCHAR(50) NOT NULL,
+    `to_status` VARCHAR(50) NOT NULL,
+    `notes` TEXT DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`work_order_id`) REFERENCES `work_orders` (`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- 16. Municipal System Settings (Tariff Rates & Astronomical Coordinates)
+CREATE TABLE IF NOT EXISTS `system_settings` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `setting_key` VARCHAR(50) NOT NULL UNIQUE,
+    `setting_value` TEXT NOT NULL,
+    `description` VARCHAR(255) DEFAULT NULL,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;

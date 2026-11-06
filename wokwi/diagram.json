@@ -1,0 +1,187 @@
+{
+  "version": 1,
+  "author": "SmartStreet 360",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-esp32-devkit-v1",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "potR",
+      "top": -120,
+      "left": -250,
+      "attrs": { "value": "1023" }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "potY",
+      "top": -40,
+      "left": -250,
+      "attrs": { "value": "1023" }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "potB",
+      "top": 40,
+      "left": -250,
+      "attrs": { "value": "1023" }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "potLDR",
+      "top": 120,
+      "left": -250,
+      "attrs": { "value": "500" }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "potFeed",
+      "top": 200,
+      "left": -250,
+      "attrs": { "value": "1023" }
+    },
+
+    {
+      "type": "wokwi-relay-module",
+      "id": "relay1",
+      "top": -130,
+      "left": 250,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "relay2",
+      "top": 10,
+      "left": 250,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "relay3",
+      "top": 150,
+      "left": 250,
+      "attrs": {}
+    },
+
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": -120,
+      "left": 470,
+      "attrs": { "color": "red" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led2",
+      "top": 20,
+      "left": 470,
+      "attrs": { "color": "yellow" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led3",
+      "top": 160,
+      "left": 470,
+      "attrs": { "color": "blue" }
+    },
+
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": -80,
+      "left": 560,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r2",
+      "top": 60,
+      "left": 560,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r3",
+      "top": 200,
+      "left": 560,
+      "attrs": { "value": "220" }
+    },
+
+    {
+      "type": "wokwi-slide-switch",
+      "id": "sw",
+      "top": 280,
+      "left": 260,
+      "attrs": { "bounce": "0" }
+    },
+    {
+      "type": "wokwi-slide-switch",
+      "id": "sw_burn",
+      "top": 10,
+      "left": 360,
+      "attrs": { "bounce": "0" }
+    }
+  ],
+
+  "connections": [
+    ["potR:VCC", "esp:3V3", "red", []],
+    ["potR:GND", "esp:GND.1", "black", []],
+    ["potR:SIG", "esp:D34", "green", []],
+
+    ["potY:VCC", "esp:3V3", "red", []],
+    ["potY:GND", "esp:GND.1", "black", []],
+    ["potY:SIG", "esp:D35", "green", []],
+
+    ["potB:VCC", "esp:3V3", "red", []],
+    ["potB:GND", "esp:GND.1", "black", []],
+    ["potB:SIG", "esp:D32", "green", []],
+
+    ["potLDR:VCC", "esp:3V3", "red", []],
+    ["potLDR:GND", "esp:GND.1", "black", []],
+    ["potLDR:SIG", "esp:D33", "green", []],
+
+    ["potFeed:VCC", "esp:3V3", "red", []],
+    ["potFeed:GND", "esp:GND.1", "black", []],
+    ["potFeed:SIG", "esp:VP", "green", []],
+
+    ["relay1:VCC", "esp:VIN", "red", []],
+    ["relay1:GND", "esp:GND.1", "black", []],
+    ["relay1:IN", "esp:D25", "green", []],
+
+    ["relay2:VCC", "esp:VIN", "red", []],
+    ["relay2:GND", "esp:GND.1", "black", []],
+    ["relay2:IN", "esp:D26", "green", []],
+
+    ["relay3:VCC", "esp:VIN", "red", []],
+    ["relay3:GND", "esp:GND.1", "black", []],
+    ["relay3:IN", "esp:D27", "green", []],
+
+    ["esp:3V3", "relay1:COM", "red", []],
+    ["esp:3V3", "relay2:COM", "red", []],
+    ["esp:3V3", "relay3:COM", "red", []],
+
+    ["relay1:NO", "led1:A", "green", []],
+    ["led1:C", "r1:1", "green", []],
+    ["r1:2", "esp:GND.1", "black", []],
+
+    ["relay2:NO", "sw_burn:1", "green", []],
+    ["sw_burn:2", "led2:A", "green", []],
+    ["sw_burn:2", "esp:D18", "orange", []],
+    ["led2:C", "r2:1", "green", []],
+    ["r2:2", "esp:GND.1", "black", []],
+
+    ["relay3:NO", "led3:A", "green", []],
+    ["led3:C", "r3:1", "green", []],
+    ["r3:2", "esp:GND.1", "black", []],
+
+    ["sw:1", "esp:GND.1", "black", []],
+    ["sw:2", "esp:D14", "green", []]
+  ],
+
+  "dependencies": {}
+}

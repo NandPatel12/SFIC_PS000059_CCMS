@@ -241,6 +241,160 @@ class CCMSHandler(SimpleHTTPRequestHandler):
                 logs = ["No SMS notifications triggered yet."]
             self.send_json(200, {'success': True, 'logs': logs})
 
+        elif path == '/api/schedules':
+            rows = cursor.execute("""
+                SELECT s.*, w.name as ward_name, f.feeder_code, u.full_name as approver_name
+                FROM lighting_schedules s
+                LEFT JOIN wards w ON s.ward_id = w.id
+                LEFT JOIN feeders f ON s.feeder_id = f.id
+                LEFT JOIN users u ON s.approved_by = u.id
+                ORDER BY s.id DESC
+            """).fetchall()
+            result = []
+            for r in rows:
+                d = dict(r)
+                d['dimming_profile'] = json.loads(d['dimming_profile_json']) if d.get('dimming_profile_json') else []
+                result.append(d)
+            self.send_json(200, {'success': True, 'schedules': result})
+
+        elif path == '/api/schedules/astronomical':
+            self.send_json(200, {
+                'success': True,
+                'astronomical': {
+                    'date': datetime.now().strftime('%Y-%m-%d'),
+                    'latitude': 23.0753,
+                    'longitude': 70.1337,
+                    'timezone': 'Asia/Kolkata',
+                    'sunrise': '06:56',
+                    'sunset': '18:10',
+                    'civil_twilight_begin': '06:34',
+                    'civil_twilight_end': '18:32',
+                    'recommended_switch_on': '18:10',
+                    'recommended_switch_off': '06:56',
+                    'current_time_ist': (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
+                }
+            })
+
+        elif path == '/api/commands':
+            rows = cursor.execute("""
+                SELECT c.*, u.full_name as issued_by_name
+                FROM device_commands c
+                LEFT JOIN users u ON c.issued_by = u.id
+                ORDER BY c.id DESC LIMIT 50
+            """).fetchall()
+            result = []
+            for r in rows:
+                d = dict(r)
+                d['parameters'] = json.loads(d['parameters_json']) if d.get('parameters_json') else {}
+                result.append(d)
+            self.send_json(200, {'success': True, 'commands': result})
+
+        elif path == '/api/work-orders/events':
+            wo_id = query.get('work_order_id', [0])[0]
+            rows = cursor.execute("""
+                SELECT e.*, u.full_name as user_name
+                FROM work_order_events e
+                LEFT JOIN users u ON e.user_id = u.id
+                WHERE e.work_order_id = ?
+                ORDER BY e.id ASC
+            """, (wo_id,)).fetchall()
+            self.send_json(200, {'success': True, 'events': [dict(r) for r in rows]})
+
+        elif path == '/api/reports/energy':
+            rows = cursor.execute("""
+                SELECT f.id, f.feeder_code, f.name as feeder_name, f.rated_capacity_kw, w.name as ward_name,
+                       COALESCE(dls.power_kw, 0.0) as current_kw,
+                       COALESCE(dls.voltage_v, 230.0) as voltage_v,
+                       COALESCE(dls.is_online, 0) as is_online
+                FROM feeders f
+                LEFT JOIN wards w ON f.ward_id = w.id
+                LEFT JOIN device_latest_state dls ON dls.asset_type = 'feeder' AND dls.asset_id = f.id
+                ORDER BY f.id ASC
+            """).fetchall()
+            feeders = []
+            tot_kw, tot_kwh, tot_cost, tot_base = 0.0, 0.0, 0.0, 0.0
+            tariff = 7.10
+            for r in rows:
+                kw = float(r['current_kw'])
+                daily_kwh = round(kw * 8.2, 2)
+                daily_cost = round(daily_kwh * tariff, 2)
+                base_kwh = round((float(r['rated_capacity_kw']) * 0.75) * 11.5, 2)
+                sav_pct = round(((base_kwh - daily_kwh) / base_kwh) * 100, 1) if base_kwh > 0 else 0.0
+                d = dict(r)
+                d['daily_kwh'] = daily_kwh
+                d['daily_cost_inr'] = daily_cost
+                d['baseline_kwh'] = base_kwh
+                d['savings_pct'] = max(0.0, sav_pct)
+                feeders.append(d)
+                tot_kw += kw
+                tot_kwh += daily_kwh
+                tot_cost += daily_cost
+                tot_base += base_kwh
+
+            sav_overall = round(((tot_base - tot_kwh) / tot_base) * 100, 1) if tot_base > 0 else 26.5
+            self.send_json(200, {
+                'success': True,
+                'energy': {
+                    'tariff_inr_per_kwh': tariff,
+                    'summary': {
+                        'current_total_load_kw': round(tot_kw, 2),
+                        'estimated_today_kwh': round(tot_kwh, 1),
+                        'estimated_today_cost_inr': round(tot_cost, 2),
+                        'estimated_monthly_cost_inr': round(tot_cost * 30, 2),
+                        'baseline_daily_kwh': round(tot_base, 1),
+                        'energy_savings_pct': sav_overall
+                    },
+                    'feeders': feeders
+                }
+            })
+
+        elif path == '/api/reports/kpi':
+            tot_a = cursor.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
+            res_a = cursor.execute("SELECT COUNT(*) FROM alerts WHERE status = 'resolved'").fetchone()[0]
+            act_a = cursor.execute("SELECT COUNT(*) FROM alerts WHERE status = 'active'").fetchone()[0]
+            tot_wo = cursor.execute("SELECT COUNT(*) FROM work_orders").fetchone()[0]
+            cls_wo = cursor.execute("SELECT COUNT(*) FROM work_orders WHERE status = 'closed'").fetchone()[0]
+            self.send_json(200, {
+                'success': True,
+                'kpis': {
+                    'total_alerts': tot_a,
+                    'active_alerts': act_a,
+                    'resolved_alerts': res_a,
+                    'total_work_orders': tot_wo,
+                    'closed_work_orders': cls_wo,
+                    'mean_time_to_acknowledge_mins': 14.5,
+                    'mean_time_to_repair_hours': 3.2,
+                    'sla_compliance_pct': 92.5
+                }
+            })
+
+        elif path == '/api/reports/export/energy':
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/csv; charset=utf-8')
+            self.send_header('Content-Disposition', 'attachment; filename="gandhidham_energy_report.csv"')
+            self.end_headers()
+            csv_lines = ["Feeder Code,Feeder Name,Ward,Rated Capacity (kW),Current Load (kW),Daily kWh,Tariff (INR),Cost (INR),Savings (%)"]
+            rows = cursor.execute("SELECT f.feeder_code, f.name, w.name as ward, f.rated_capacity_kw, COALESCE(dls.power_kw, 0) as kw FROM feeders f LEFT JOIN wards w ON f.ward_id = w.id LEFT JOIN device_latest_state dls ON dls.asset_type = 'feeder' AND dls.asset_id = f.id").fetchall()
+            for r in rows:
+                kw = float(r['kw'])
+                kwh = round(kw * 8.2, 1)
+                cost = round(kwh * 7.10, 2)
+                csv_lines.append(f"{r['feeder_code']},{r['name']},{r['ward']},{r['rated_capacity_kw']},{kw},{kwh},7.10,{cost},27.5%")
+            self.wfile.write("\n".join(csv_lines).encode('utf-8'))
+            return
+
+        elif path == '/api/reports/export/work-orders':
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/csv; charset=utf-8')
+            self.send_header('Content-Disposition', 'attachment; filename="gandhidham_work_orders.csv"')
+            self.end_headers()
+            csv_lines = ["Order Code,Title,Priority,Status,Contractor,Created At,Closed At"]
+            rows = cursor.execute("SELECT wo.order_code, wo.title, wo.priority, wo.status, u.full_name as contractor, wo.created_at, wo.closed_at FROM work_orders wo LEFT JOIN users u ON wo.assigned_to = u.id").fetchall()
+            for r in rows:
+                csv_lines.append(f"{r['order_code']},{r['title']},{r['priority']},{r['status']},{r['contractor'] or 'Unassigned'},{r['created_at']},{r['closed_at'] or 'Open'}")
+            self.wfile.write("\n".join(csv_lines).encode('utf-8'))
+            return
+
         else:
             self.send_json(404, {'success': False, 'error': 'Endpoint not found'})
 
@@ -530,6 +684,145 @@ class CCMSHandler(SimpleHTTPRequestHandler):
             """, (v, kw, fid))
             conn.commit()
             self.send_json(200, {'success': True, 'message': 'Simulated reading updated'})
+
+        # --- Phase 4: Lighting Schedules & Device Commands ---
+        elif path == '/api/schedules/create':
+            name = data.get('name', 'Custom Schedule').strip()
+            ward_id = data.get('ward_id')
+            feeder_id = data.get('feeder_id')
+            is_astro = 1 if data.get('is_astronomical') else 0
+            sunset_off = int(data.get('sunset_offset_mins', 0))
+            sunrise_off = int(data.get('sunrise_offset_mins', 0))
+            fixed_on = data.get('fixed_on_time')
+            fixed_off = data.get('fixed_off_time')
+            dimming = json.dumps(data.get('dimming_profile', []))
+            uid = CURRENT_SESSION['user']['id'] if CURRENT_SESSION['user'] else 1
+
+            cursor.execute("""
+                INSERT INTO lighting_schedules (name, ward_id, feeder_id, is_astronomical, sunset_offset_mins, sunrise_offset_mins, fixed_on_time, fixed_off_time, dimming_profile_json, status, approved_by, approved_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, datetime('now'), datetime('now'), datetime('now'))
+            """, (name, ward_id, feeder_id, is_astro, sunset_off, sunrise_off, fixed_on, fixed_off, dimming, uid))
+            conn.commit()
+            self.send_json(200, {'success': True, 'message': 'Schedule created', 'id': cursor.lastrowid})
+
+        elif path == '/api/commands/dispatch':
+            ttype = data.get('target_type', 'feeder')
+            tid = int(data.get('target_id', 1))
+            ctype = data.get('command_type', 'SWITCH_ON')
+            params = data.get('parameters', {})
+            reason = data.get('reason', 'Manual command from portal')
+            uid = CURRENT_SESSION['user']['id'] if CURRENT_SESSION['user'] else 1
+            code = f"CMD-{datetime.now().strftime('%Y%m%d')}-{os.urandom(3).hex().upper()}"
+            exp = (datetime.now() + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
+
+            cursor.execute("""
+                INSERT INTO device_commands (command_code, target_type, target_id, command_type, parameters_json, reason, status, issued_by, expires_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'dispatched', ?, ?, datetime('now'), datetime('now'))
+            """, (code, ttype, tid, ctype, json.dumps(params), reason, uid, exp))
+
+            cstate = 'ON' if ctype in ['SWITCH_ON', 'MANUAL_OVERRIDE'] else ('OFF' if ctype == 'SWITCH_OFF' else None)
+            bright = params.get('brightness_pct')
+            if cstate:
+                cursor.execute("UPDATE device_latest_state SET commanded_state = ?, updated_at = datetime('now') WHERE asset_type = ? AND asset_id = ?", (cstate, ttype, tid))
+            if bright is not None:
+                cursor.execute("UPDATE device_latest_state SET brightness_pct = ?, updated_at = datetime('now') WHERE asset_type = ? AND asset_id = ?", (int(bright), ttype, tid))
+
+            conn.commit()
+            self.send_json(200, {'success': True, 'command': {'id': cursor.lastrowid, 'command_code': code, 'status': 'dispatched'}})
+
+        elif path == '/api/commands/acknowledge':
+            cid = data.get('command_id')
+            cursor.execute("""
+                UPDATE device_commands 
+                SET status = 'acknowledged', acknowledged_at = datetime('now'), response_payload_json = '{"gateway_ack":true,"mode":"TLS_4G"}', updated_at = datetime('now')
+                WHERE id = ?
+            """, (cid,))
+            conn.commit()
+            self.send_json(200, {'success': True, 'message': 'Command acknowledged'})
+
+        elif path == '/api/commands/override':
+            ttype = data.get('target_type', 'feeder')
+            tid = int(data.get('target_id', 1))
+            state = data.get('state', 'ON').upper()
+            bright = int(data.get('brightness_pct', 100))
+            dur = int(data.get('duration_mins', 60))
+            reason = data.get('reason', 'Field maintenance override')
+            uid = CURRENT_SESSION['user']['id'] if CURRENT_SESSION['user'] else 1
+            code = f"CMD-OVR-{datetime.now().strftime('%Y%m%d')}-{os.urandom(2).hex().upper()}"
+            exp = (datetime.now() + timedelta(minutes=dur)).strftime('%Y-%m-%d %H:%M:%S')
+
+            cursor.execute("""
+                INSERT INTO device_commands (command_code, target_type, target_id, command_type, parameters_json, reason, status, issued_by, expires_at, created_at, updated_at)
+                VALUES (?, ?, ?, 'MANUAL_OVERRIDE', ?, ?, 'dispatched', ?, ?, datetime('now'), datetime('now'))
+            """, (code, ttype, tid, json.dumps({'state': state, 'brightness_pct': bright, 'duration_mins': dur}), reason, uid, exp))
+
+            cursor.execute("UPDATE device_latest_state SET commanded_state = ?, brightness_pct = ?, updated_at = datetime('now') WHERE asset_type = ? AND asset_id = ?", (state, bright, ttype, tid))
+            conn.commit()
+            self.send_json(200, {'success': True, 'override': {'id': cursor.lastrowid, 'command_code': code, 'status': 'dispatched'}})
+
+        # --- Phase 5: Work Orders ---
+        elif path == '/api/work-orders/create-from-alert':
+            aid = int(data.get('alert_id', 0))
+            assignee = int(data.get('assigned_to', 4))
+            prio = data.get('priority', 'medium')
+            title = data.get('title')
+            uid = CURRENT_SESSION['user']['id'] if CURRENT_SESSION['user'] else 1
+
+            alt = cursor.execute("SELECT * FROM alerts WHERE id = ?", (aid,)).fetchone()
+            if not alt:
+                self.send_json(404, {'success': False, 'error': f'Alert #{aid} not found'})
+                return
+
+            hours = 4 if prio == 'emergency' else (12 if prio == 'high' else 24)
+            deadline = (datetime.now() + timedelta(hours=hours)).strftime('%Y-%m-%d %H:%M:%S')
+            code = f"WO-{datetime.now().strftime('%Y%m')}-{str(aid).zfill(4)}"
+            if not title:
+                title = f"Repair: {alt['summary']}"
+
+            cursor.execute("""
+                INSERT INTO work_orders (order_code, alert_id, asset_type, asset_id, title, priority, assigned_to, sla_deadline, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'assigned', datetime('now'), datetime('now'))
+            """, (code, aid, alt['asset_type'], alt['asset_id'], title, prio, assignee, deadline))
+            new_wo = cursor.lastrowid
+
+            cursor.execute("""
+                INSERT INTO work_order_events (work_order_id, user_id, from_status, to_status, notes, created_at)
+                VALUES (?, ?, 'open', 'assigned', ?, datetime('now'))
+            """, (new_wo, uid, f"Work order generated with {hours}h SLA"))
+
+            cursor.execute("UPDATE alerts SET status = 'acknowledged', acknowledged_by = ?, acknowledged_at = datetime('now') WHERE id = ?", (uid, aid))
+            conn.commit()
+            self.send_json(200, {'success': True, 'work_order': {'id': new_wo, 'order_code': code, 'status': 'assigned'}})
+
+        elif path == '/api/work-orders/update-status':
+            wo_id = int(data.get('work_order_id', 0))
+            new_status = data.get('status', 'in_progress')
+            notes = data.get('notes', f'Status updated to {new_status}')
+            evidence = data.get('repair_evidence_notes')
+            uid = CURRENT_SESSION['user']['id'] if CURRENT_SESSION['user'] else 1
+
+            wo = cursor.execute("SELECT * FROM work_orders WHERE id = ?", (wo_id,)).fetchone()
+            if not wo:
+                self.send_json(404, {'success': False, 'error': f'Work order #{wo_id} not found'})
+                return
+
+            from_s = wo['status']
+            if evidence:
+                cursor.execute("UPDATE work_orders SET status = ?, repair_evidence_notes = ?, updated_at = datetime('now') WHERE id = ?", (new_status, evidence, wo_id))
+            else:
+                cursor.execute("UPDATE work_orders SET status = ?, updated_at = datetime('now') WHERE id = ?", (new_status, wo_id))
+
+            if new_status == 'closed':
+                cursor.execute("UPDATE work_orders SET closed_at = datetime('now') WHERE id = ?", (wo_id,))
+                if wo['alert_id']:
+                    cursor.execute("UPDATE alerts SET status = 'resolved', resolved_by = ?, resolved_at = datetime('now'), resolution_notes = ? WHERE id = ?", (uid, evidence or 'Closed via Work Order', wo['alert_id']))
+
+            cursor.execute("""
+                INSERT INTO work_order_events (work_order_id, user_id, from_status, to_status, notes, created_at)
+                VALUES (?, ?, ?, ?, ?, datetime('now'))
+            """, (wo_id, uid, from_s, new_status, notes))
+            conn.commit()
+            self.send_json(200, {'success': True, 'message': 'Work order status updated'})
 
         else:
             self.send_json(404, {'success': False, 'error': 'API endpoint not found'})

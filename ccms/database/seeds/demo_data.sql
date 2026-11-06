@@ -13,10 +13,10 @@ ON DUPLICATE KEY UPDATE `name`=VALUES(`name`);
 -- Default Users (Password: Admin@1234, Engineer@1234, Supervisor@1234, Contractor@1234)
 -- Hashes generated via password_hash('...', PASSWORD_BCRYPT)
 INSERT INTO `users` (`id`, `role_id`, `username`, `email`, `password_hash`, `full_name`, `phone`, `status`) VALUES
-(1, 1, 'admin', 'admin@gandhidham.gov.in', '$2y$10$tZ2R4Gq6uV9vjH6eE1V/2.pXWl6y0N/0rE3u9k7O7tC9i8iJk.V6O', 'Chief Municipal Admin', '+91 98250 11001', 'active'),
-(2, 2, 'engineer_patel', 'ee.patel@gandhidham.gov.in', '$2y$10$tZ2R4Gq6uV9vjH6eE1V/2.pXWl6y0N/0rE3u9k7O7tC9i8iJk.V6O', 'Er. Rajesh Patel (EE)', '+91 98250 11002', 'active'),
-(3, 3, 'sup_sharma', 'sup.sharma@gandhidham.gov.in', '$2y$10$tZ2R4Gq6uV9vjH6eE1V/2.pXWl6y0N/0rE3u9k7O7tC9i8iJk.V6O', 'Virendra Sharma (Supervisor)', '+91 98250 11003', 'active'),
-(4, 4, 'contractor_apex', 'repairs@apexelectricals.com', '$2y$10$tZ2R4Gq6uV9vjH6eE1V/2.pXWl6y0N/0rE3u9k7O7tC9i8iJk.V6O', 'Apex Electrical Maintenance', '+91 98250 11004', 'active')
+(1, 1, 'admin', 'admin@gandhidham.gov.in', '$2y$10$Dgh/EzTU2UXUq6aOMaMapOLGLywCu.KBEOOuj5q1yM5dpinIZUXYq', 'Chief Municipal Admin', '+91 98250 11001', 'active'),
+(2, 2, 'engineer_patel', 'ee.patel@gandhidham.gov.in', '$2y$10$Dgh/EzTU2UXUq6aOMaMapOLGLywCu.KBEOOuj5q1yM5dpinIZUXYq', 'Er. Rajesh Patel (EE)', '+91 98250 11002', 'active'),
+(3, 3, 'sup_sharma', 'sup.sharma@gandhidham.gov.in', '$2y$10$Dgh/EzTU2UXUq6aOMaMapOLGLywCu.KBEOOuj5q1yM5dpinIZUXYq', 'Virendra Sharma (Supervisor)', '+91 98250 11003', 'active'),
+(4, 4, 'contractor_apex', 'repairs@apexelectricals.com', '$2y$10$Dgh/EzTU2UXUq6aOMaMapOLGLywCu.KBEOOuj5q1yM5dpinIZUXYq', 'Apex Electrical Maintenance', '+91 98250 11004', 'active')
 ON DUPLICATE KEY UPDATE `full_name`=VALUES(`full_name`);
 
 -- Demo Wards (Gandhidham Corporation Pilot Wards)
@@ -71,3 +71,31 @@ INSERT INTO `work_orders` (`id`, `order_code`, `alert_id`, `asset_type`, `asset_
 (1, 'WO-202611-001', 1, 'luminaire', 3, 'Replace faulty LED driver on Pole W03-003', 'high', 4, DATE_ADD(NOW(), INTERVAL 4 HOUR), 'assigned')
 ON DUPLICATE KEY UPDATE `title`=VALUES(`title`);
 
+
+-- Phase 4: Lighting Schedules
+INSERT INTO `lighting_schedules` (`id`, `name`, `ward_id`, `feeder_id`, `is_astronomical`, `sunset_offset_mins`, `sunrise_offset_mins`, `fixed_on_time`, `fixed_off_time`, `dimming_profile_json`, `status`, `approved_by`, `approved_at`, `created_at`) VALUES
+(1, 'Gandhidham Standard Astronomical Profile', NULL, NULL, 1, 0, 0, NULL, NULL, '[{"start":"23:00","end":"05:00","brightness_pct":65}]', 'active', 2, NOW(), NOW()),
+(2, 'Ward 7 Port Freight Corridor (High Intensity)', 2, 3, 0, 0, 0, '18:30:00', '06:15:00', '[{"start":"01:00","end":"04:30","brightness_pct":80}]', 'active', 2, NOW(), NOW()),
+(3, 'Ward 3 Adipur Market Energy Saver', 1, 1, 1, 15, -15, NULL, NULL, '[{"start":"22:30","end":"05:30","brightness_pct":50}]', 'active', 2, NOW(), NOW())
+ON DUPLICATE KEY UPDATE `name`=VALUES(`name`);
+
+-- Phase 4: Device Commands Queue
+INSERT INTO `device_commands` (`id`, `command_code`, `target_type`, `target_id`, `command_type`, `parameters_json`, `reason`, `status`, `issued_by`, `expires_at`, `acknowledged_at`, `created_at`) VALUES
+(1, 'CMD-202611-001', 'feeder', 1, 'SWITCH_ON', '{"contactor":true}', 'Scheduled astronomical turn-on', 'acknowledged', 2, DATE_ADD(NOW(), INTERVAL 1 HOUR), NOW(), NOW()),
+(2, 'CMD-202611-002', 'luminaire', 1, 'SET_DIMMING', '{"brightness_pct":65}', 'Night-time energy saving dimming block', 'acknowledged', 2, DATE_ADD(NOW(), INTERVAL 1 HOUR), NOW(), NOW()),
+(3, 'CMD-202611-003', 'feeder', 2, 'MANUAL_OVERRIDE', '{"state":"ON","duration_mins":60}', 'Underground cable joint test inspection', 'dispatched', 2, DATE_ADD(NOW(), INTERVAL 1 HOUR), NULL, NOW())
+ON DUPLICATE KEY UPDATE `command_code`=VALUES(`command_code`);
+
+-- Phase 5: Work Order Timeline Events
+INSERT INTO `work_order_events` (`id`, `work_order_id`, `user_id`, `from_status`, `to_status`, `notes`, `created_at`) VALUES
+(1, 1, 3, 'open', 'assigned', 'Assigned to Apex Electrical Maintenance with 4h SLA target', NOW())
+ON DUPLICATE KEY UPDATE `notes`=VALUES(`notes`);
+
+-- Phase 5: Municipal Settings & Energy Tariffs
+INSERT INTO `system_settings` (`id`, `setting_key`, `setting_value`, `description`) VALUES
+(1, 'tariff_inr_per_kwh', '7.10', 'Commercial municipal public lighting tariff in INR per unit (kWh)'),
+(2, 'gandhidham_latitude', '23.0753', 'Gandhidham Municipal Corporation Latitude'),
+(3, 'gandhidham_longitude', '70.1337', 'Gandhidham Municipal Corporation Longitude'),
+(4, 'timezone', 'Asia/Kolkata', 'System operating timezone'),
+(5, 'baseline_feeder_kwh_daily', '140.0', 'Baseline un-dimmed daily energy consumption per feeder in kWh')
+ON DUPLICATE KEY UPDATE `setting_value`=VALUES(`setting_value`);

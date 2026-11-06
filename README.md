@@ -13,8 +13,8 @@ A web-based IoT supervisory management platform built for **Gandhidham Municipal
 | **Phase 1** | Web Application Foundation | ✅ Completed | MySQL relational schema, layered PHP backend structure, responsive HTML5/CSS3/Vanilla JS UI, session management, and audit logging. |
 | **Phase 2** | Asset Registry & Live Telemetry | ✅ Completed | Full CRUD for Wards, Feeders, Panels, and Luminaires; authenticated telemetry ingestion; message deduplication (`message_id`); latest device state caching. |
 | **Phase 3** | Fault Detection & Alerts | ✅ Completed | Automated rule engine (Phase Failure, Voltage Surge, Lamp Dropout, Day-Burning, Overload); duplicate alert suppression; supervisor acknowledge/resolve workflow; SMS sandbox dispatcher. |
-| **Phase 4** | Schedules & Device Commands | ⏳ Next | Astronomical switching calculations (`Asia/Kolkata`) and scheduled dimming profiles. |
-| **Phase 5** | Work Orders & Energy Reporting | ⏳ Next | Auto-dispatching work orders, repair evidence tracking, and tariff-based energy cost calculations. |
+| **Phase 4** | Schedules & Device Commands | ✅ Completed | Astronomical switching calculations (`Asia/Kolkata`), scheduled dimming blocks, manual override with expiry, and command queue with gateway acknowledgement. |
+| **Phase 5** | Work Orders & Energy Reporting | ✅ Completed | Alert-driven work order generation, SLA deadline tracking, repair evidence & timeline audit, municipal tariff (₹7.10/kWh) energy analytics, and CSV exports. |
 
 ---
 
@@ -68,6 +68,11 @@ ps000059/
 │   │   └── logs/
 │   │       └── sms_sandbox.log         # Sandbox dispatch logs for SMS alerts
 │   └── .env.example                    # Environment configuration template
+├── wokwi/                              # ESP32 3-Phase CCMS Wokwi Hardware Simulation
+│   ├── diagram.json                    # Simulation schematic & component layout
+│   ├── sketch.ino                      # SmartStreet 360 firmware sketch
+│   ├── wokwi.toml                      # Simulator configuration file
+│   └── README.md                       # Wiring, pinouts, and test scenarios
 └── README.md
 ```
 

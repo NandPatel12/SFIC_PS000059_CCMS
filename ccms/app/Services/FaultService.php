@@ -184,6 +184,7 @@ class FaultService {
     public static function sendSmsNotification(int $alertId, string $severity, string $summary): void {
         // Sandboxed SMS notification logger (Mock Gateway)
         $logPath = __DIR__ . '/../../storage/logs/sms_sandbox.log';
+        @mkdir(dirname($logPath), 0777, true);
         $logEntry = sprintf(
             "[%s] [SMS TEST GATEWAY] Recipient: Line Supervisors & EE | Alert #%d [%s]: %s\n",
             date('Y-m-d H:i:s'),
