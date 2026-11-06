@@ -1,0 +1,3 @@
+[2026-11-06 08:58:49] [SMS DISPATCH] Alert #2 [CRITICAL]: Phase loss or low voltage on Feeder FDR-W03-FP01: R=140.5V, Y=230.0V, B=228.0V
+[2026-11-06 08:58:59] [SMS DISPATCH] Alert #3 [CRITICAL]: Lamp failure on Pole POLE-W03-001: Commanded ON but consuming 0W
+[2026-11-06 09:01:07] [SMS DISPATCH] Alert #4 [CRITICAL]: Phase loss or low voltage on Feeder FDR-W03-FP01: R=135.0V, Y=230.0V, B=228.0V
